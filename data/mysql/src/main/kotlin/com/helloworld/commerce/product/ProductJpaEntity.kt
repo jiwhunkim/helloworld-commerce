@@ -1,6 +1,5 @@
 package com.helloworld.commerce.product
 
-import com.helloworld.commerce.domain.Product
 import jakarta.persistence.*
 import java.math.BigDecimal
 import java.time.LocalDateTime
@@ -30,29 +29,5 @@ class ProductJpaEntity(
     @Column(nullable = false)
     var updatedAt: LocalDateTime = LocalDateTime.now()
 ) {
-    fun toDomain(): Product {
-        return Product(
-            id = id,
-            name = name,
-            description = description,
-            price = price,
-            stockQuantity = stockQuantity,
-            createdAt = createdAt,
-            updatedAt = updatedAt
-        )
-    }
 
-    companion object {
-        fun from(product: Product): ProductJpaEntity {
-            return ProductJpaEntity(
-                id = product.id,
-                name = product.name,
-                description = product.description,
-                price = product.price,
-                stockQuantity = product.stockQuantity,
-                createdAt = product.createdAt,
-                updatedAt = product.updatedAt
-            )
-        }
-    }
 }

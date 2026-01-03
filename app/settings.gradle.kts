@@ -17,3 +17,4 @@ pluginManagement {
 rootProject.name = "app"
 
 include("api")
+include("worker")

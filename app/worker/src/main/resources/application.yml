@@ -2,4 +2,4 @@ spring:
   profiles:
     include: mysql
   application:
-    name: helloworld-commerce-api
+    name: helloworld-commerce-worker
