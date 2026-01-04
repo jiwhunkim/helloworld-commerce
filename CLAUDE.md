@@ -17,7 +17,7 @@ Root (helloworld-commerce)
 ├── domain          (independent build)
 ├── data            (composite build: mysql, redis)
 ├── application     (independent build)
-└── app             (composite build: api)
+└── app             (composite build: api, worker)
 ```
 
 ### Module Structure and Dependencies
@@ -33,6 +33,7 @@ data/redis (independent)
 application (depends on: domain, data/mysql)
   ↑
 app/api (depends on: domain, application, data/mysql)
+app/worker (depends on: domain, application, data/mysql)
 ```
 
 **Critical Rules**:
@@ -42,11 +43,12 @@ app/api (depends on: domain, application, data/mysql)
 
 ### Layer Responsibilities
 
-- **domain/**: Pure business logic and domain models. Uses jMolecules for DDD patterns. No Spring, no JPA annotations.
-- **data/mysql/**: JPA entities, repositories, Flyway migrations. Converts between domain models and JPA entities.
+- **domain/**: Pure business logic and domain models. Uses jMolecules `@Entity`, `@AggregateRoot`, `@ValueObject` for DDD patterns. No Spring, no JPA annotations.
+- **data/mysql/**: JPA entities, repositories, Flyway migrations, persistence adapters. Converts between domain models and JPA entities.
 - **data/redis/**: Redis caching and session storage configuration.
-- **application/**: Use cases and application services. Orchestrates domain and data layers with `@Service` and `@Transactional`. Uses Spring Modulith for modularity.
-- **app/api/**: REST controllers (`@RestController`), configuration, Spring Boot entry point. Only module that creates executable JAR.
+- **application/**: Use cases (primary ports), application services, hexagonal ports (input/output). Orchestrates domain/data layers with `@Service` and `@Transactional`. Uses Spring Modulith for event-driven communication.
+- **app/api/**: REST controllers (`@RestController`), HTTP files, API entry point. Only module creating executable JAR for API.
+- **app/worker/**: Kafka consumers, event listeners. Worker entry point for async processing.
 
 ### Build Logic (Convention Plugins)
 
@@ -71,13 +73,14 @@ This project uses Gradle convention plugins in `build-logic/` to avoid duplicati
 
 All dependency versions are centralized in `gradle/libs.versions.toml`. Key dependencies:
 
-- **Kotlin**: 1.9.21
-- **Spring Boot**: 3.2.0
-- **Spring Modulith**: 1.1.0
-- **jMolecules**: 1.8.0 (DDD patterns)
-- **Flyway**: 10.4.1 (database migrations)
-- **Kotest**: 5.8.0 (testing framework)
-- **TestContainers**: 1.19.3 (integration testing)
+- **Kotlin**: 2.3.0
+- **Java Toolchain**: 25
+- **Spring Boot**: 4.0.1
+- **Spring Modulith**: Latest (managed by Spring Boot)
+- **jMolecules**: 2025.0.2 (DDD patterns)
+- **Kotlin Logging**: 7.0.13
+- **Kotest**: 6.0.2 (testing framework)
+- **Testcontainers**: 2.0.3 (integration testing)
 
 To update versions:
 1. Edit the version in `[versions]` section
@@ -94,8 +97,10 @@ docker-compose up -d
 
 # Build specific module (composite build pattern)
 ./gradlew :app:api:build
+./gradlew :app:worker:build
 ./gradlew :data:mysql:build
 ./gradlew :domain:build
+./gradlew :application:build
 
 # Build with tests
 ./gradlew :app:api:build
@@ -106,9 +111,13 @@ docker-compose up -d
 # Run the application (note the :api suffix)
 ./gradlew :app:api:bootRun
 
+# Run the worker (if needed)
+./gradlew :app:worker:bootRun
+
 # Note: There is NO root-level clean task in composite builds
 # Clean individual modules if needed:
 ./gradlew :app:api:clean
+./gradlew :app:worker:clean
 ```
 
 ### Testing
@@ -118,16 +127,23 @@ docker-compose up -d
 ./gradlew :domain:test
 ./gradlew :application:test
 ./gradlew :app:api:test
+./gradlew :app:worker:test
 ./gradlew :data:mysql:test
 
 # Run integration tests (uses intTest suite)
 ./gradlew :app:api:intTest
 ./gradlew :data:mysql:intTest
 
-# Run tests with specific test class
-./gradlew :app:api:test --tests "ProductControllerTest"
+# Run all tests including integration tests
+./gradlew check
 
-# Note: Use Kotest framework for new tests
+# Run tests with specific test class
+./gradlew :app:api:test --tests "OrderControllerTest"
+
+# Run specific test method
+./gradlew :app:api:test --tests "OrderControllerTest.should complete an order"
+
+# Note: Use Kotest DescribeSpec framework for new tests
 ```
 
 ### Database
@@ -179,16 +195,167 @@ docker exec -it helloworld-commerce-mysql mysql -uroot -pmysql helloworld-commer
 ```bash
 # Check dependencies (specify module in composite build)
 ./gradlew :app:api:dependencies
+./gradlew :app:worker:dependencies
 ./gradlew :data:mysql:dependencies
+./gradlew :application:dependencies
 
 # View all tasks for a module
 ./gradlew :app:api:tasks
+./gradlew :app:worker:tasks
 
 # Build specific modules
 ./gradlew :domain:build
 ./gradlew :data:mysql:jar
+./gradlew :application:jar
 ./gradlew :app:api:bootJar
+./gradlew :app:worker:bootJar
 ```
+
+## Code Style & Conventions
+
+### Language & Formatting
+- **Primary language**: Kotlin 2.3.0 (use Kotlin DSL for Gradle)
+- **Indentation**: 4 spaces (defined in `.editorconfig`)
+- **Line endings**: LF (Unix-style)
+- **Encoding**: UTF-8
+- **Trailing whitespace**: Trim
+- **Java toolchain**: 25
+
+### Naming Conventions
+
+#### Domain Layer
+- **Domain events**: `OrderComplete` (data class in domain package)
+- **Aggregates**: Annotate with `@AggregateRoot` (jMolecules)
+- **Entities**: Annotate with `@Entity` (jMolecules, not JPA)
+- **Value objects**: Annotate with `@ValueObject` (jMolecules)
+
+#### Data Layer
+- **JPA entities**: `OrderJpaEntity` (class with JPA annotations)
+- **Repositories**: `OrderJpaRepository` (interface extends `JpaRepository`)
+- **Persistence adapters**: `OrderPersistenceAdapter` (implements secondary ports)
+
+#### Application Layer
+- **Primary ports (use cases)**: `CompleteOrderUseCase` (interface annotated with `@PrimaryPort`)
+- **Secondary ports**: `LoadOrderPort` (interface annotated with `@SecondaryPort`)
+- **Services**: `OrderService` (class annotated with `@Service`, implements primary ports)
+
+#### App Layer
+- **Controllers**: `OrderController` (class annotated with `@RestController`)
+- **Consumers**: `OrderConsumer` (class annotated with `@Service`)
+
+### Import Guidelines
+
+Always use the correct imports:
+- **JPA**: `jakarta.persistence.*` (NOT `javax.persistence.*`)
+- **jMolecules DDD**: `org.jmolecules.ddd.annotation.*` (`@Entity`, `@AggregateRoot`, `@ValueObject`)
+- **jMolecules Events**: `org.jmolecules.event.annotation.*` (`@DomainEvent`)
+- **jMolecules Hexagonal**: `org.jmolecules.architecture.hexagonal.*` (`@PrimaryPort`, `@SecondaryPort`)
+- **Logging**: `io.github.oshai.kotlinlogging.KotlinLogging`
+- **Spring Modulith**: `org.springframework.modulith.events.ApplicationModuleListener`
+
+### Type System & Properties
+
+- **Domain models**: Immutable `data class` with validation in `init` blocks
+- **JPA entities**: `class` with `val` for immutable properties, `var` for mutable ones
+- **Prefer `val` over `var`**: Use `var` only when mutability is required
+- **Constructor injection**: Always use constructor injection
+  ```kotlin
+  class OrderService(
+      val orderPort: LoadOrderPort,
+      val events: ApplicationEventPublisher
+  )
+  ```
+- **Function return types**: Omit `: Unit` explicitly for void functions
+
+### Architecture Patterns
+
+#### Hexagonal Architecture with jMolecules
+- **Primary ports**: `@PrimaryPort` interfaces for use cases (inbound)
+- **Secondary ports**: `@SecondaryPort` interfaces for data access (outbound)
+- **Primary adapters**: Controllers implementing REST API
+- **Secondary adapters**: Persistence adapters implementing secondary ports
+
+#### Event-Driven Architecture
+- **Event publishing**: Use `ApplicationEventPublisher`
+- **Event listening**: Use `@ApplicationModuleListener` for Spring Modulith events
+- **Event externalization**: Use `@Externalized("order-event::#{#this.getId()}")` on domain events
+- **Transactional events**: Events are published within transaction boundaries
+
+#### Transaction Management
+- Use `@Transactional` on service methods
+- Default to `@Transactional(readOnly = true)` for read operations
+- Override with `@Transactional` for write operations
+
+### Error Handling
+
+- Use Kotlin's null safety features (`?`, `?.`, `?:`, `!!`)
+- Throw meaningful exceptions with descriptive messages
+- Consider custom domain exceptions for business rule violations
+- Avoid swallowing exceptions; let them propagate to appropriate handlers
+
+### Logging
+
+Use Kotlin Logging for structured logging:
+```kotlin
+import io.github.oshai.kotlinlogging.KotlinLogging
+
+private val log = KotlinLogging.logger {}
+
+class OrderService {
+    fun completeOrder(orderId: Long) {
+        log.info { "Completing order: $orderId" }
+        log.error(exception) { "Failed to complete order: $orderId" }
+    }
+}
+```
+
+**Best practices**:
+- Use lazy evaluation with curly braces: `log.info { "message" }`
+- Log at appropriate levels: `info`, `warn`, `error`, `debug`, `trace`
+- Include context in log messages (IDs, relevant data)
+
+### Testing
+
+- **Framework**: JUnit 5 + Kotest 6.0.2
+- **Integration tests**: Testcontainers for MySQL, Spring Boot Test
+- **Test style**: Use Kotest `DescribeSpec` style for behavior-driven tests
+  ```kotlin
+  class OrderServiceTest : DescribeSpec({
+      describe("OrderService") {
+          it("should complete an order") {
+              // test implementation
+          }
+      }
+  })
+  ```
+- **Test naming**: Name tests descriptively after the class under test
+  - `OrderControllerTest`, `OrderServiceTest`, `OrderPersistenceAdapterTest`
+- **Test profiles**: Use `@ActiveProfiles("test")` for integration tests
+- **Spring Boot tests**: Use `@SpringBootTest` with `@Import(TestcontainersConfiguration::class)` for full context
+
+### Database Migrations
+
+- **Tool**: Flyway for schema migrations
+- **Root migrations**: `db/migration/__root/` (e.g., `event_publication` table)
+- **Module-specific migrations**: `db/migration/{module}/` (e.g., `order`, `product`)
+- **Safety**: Use `CREATE TABLE IF NOT EXISTS` to avoid conflicts
+- **Naming**: `V1__init.sql`, `V2__add_column.sql`, etc.
+
+### API Documentation
+
+- **HTTP files**: Store in `app/api/http/` directory
+- **Example**: `order.http` with sample requests
+  ```http
+  GET http://localhost:8080/orders/completed
+  ```
+- **Documentation**: Document new endpoints in both HTTP files and this CLAUDE.md
+
+### Configuration
+
+- **MySQL**: localhost:3306, database: `helloworld-commerce`, user: `root`, password: `mysql`
+- **Redis**: localhost:6379
+- **Consistency**: Update both `docker-compose.yml` and `application.yml` when changing credentials
+- **Profiles**: Use Spring profiles (e.g., `application.yml` includes `application-mysql.properties`)
 
 ## Domain Model Pattern
 
@@ -277,6 +444,53 @@ class ProductController(private val productService: ProductService) {
 
 Separate request/response DTOs from domain models to maintain clean boundaries.
 
+## Package Structure
+
+All code uses base package `com.helloworld.commerce` with module-specific subpackages following hexagonal architecture:
+
+### Domain Module
+- **Domain models**: `com.helloworld.commerce.{module}.domain`
+  - Example: `com.helloworld.commerce.order.domain.Order`
+  - Use jMolecules annotations: `@Entity`, `@AggregateRoot`, `@ValueObject`
+  - No Spring or JPA annotations
+
+### Data Modules
+- **JPA entities**: `com.helloworld.commerce.{module}.adapter.output.mysql`
+  - Example: `com.helloworld.commerce.order.adapter.output.mysql.OrderJpaEntity`
+  - Suffix: `*JpaEntity`
+- **Repositories**: `com.helloworld.commerce.{module}.adapter.output.mysql`
+  - Example: `com.helloworld.commerce.order.adapter.output.mysql.OrderJpaRepository`
+  - Suffix: `*JpaRepository`
+- **Persistence adapters**: `com.helloworld.commerce.{module}.adapter.output.mysql`
+  - Example: `com.helloworld.commerce.order.adapter.output.mysql.OrderPersistenceAdapter`
+  - Implements secondary ports from application layer
+  - Suffix: `*PersistenceAdapter`
+
+### Application Module
+- **Primary ports (use cases)**: `com.helloworld.commerce.{module}.application.port.input`
+  - Example: `com.helloworld.commerce.order.application.port.input.CompleteOrderUseCase`
+  - Annotated with `@PrimaryPort` (jMolecules)
+  - Suffix: `*UseCase`
+- **Secondary ports**: `com.helloworld.commerce.{module}.application.port.output`
+  - Example: `com.helloworld.commerce.order.application.port.output.LoadOrderPort`
+  - Annotated with `@SecondaryPort` (jMolecules)
+  - Suffix: `*Port`
+- **Services**: `com.helloworld.commerce.{module}.application.service`
+  - Example: `com.helloworld.commerce.order.application.service.OrderService`
+  - Annotated with `@Service`
+  - Implements primary ports (use cases)
+  - Suffix: `*Service`
+
+### App Modules
+- **Controllers (API)**: `com.helloworld.commerce.{module}.api`
+  - Example: `com.helloworld.commerce.order.api.OrderController`
+  - Annotated with `@RestController`
+  - Suffix: `*Controller`
+- **Consumers (Worker)**: `com.helloworld.commerce.{module}.worker`
+  - Example: `com.helloworld.commerce.order.worker.OrderConsumer`
+  - Annotated with `@Service`
+  - Suffix: `*Consumer`
+
 ## Important Configuration Notes
 
 ### Database Connection
@@ -290,15 +504,6 @@ The application expects MySQL on `localhost:3306` with database `helloworld-comm
 ### Hibernate DDL Mode
 
 Currently set to `ddl-auto: update` for development. For production, change to `validate` or `none` and use migration tools.
-
-### Package Structure
-
-All code uses base package `com.helloworld.commerce` with module-specific subpackages:
-- `com.helloworld.commerce.domain`
-- `com.helloworld.commerce.data`
-- `com.helloworld.commerce.application`
-- `com.helloworld.commerce` (app module)
-- `com.helloworld.commerce.api` (controllers)
 
 ## Spring Modulith Event-Driven Architecture
 
@@ -408,25 +613,190 @@ This enables module-specific migration paths:
 
 ## Adding New Features
 
-When adding a new entity/aggregate:
+When adding a new entity/aggregate following hexagonal architecture:
 
-1. **Domain module**: Create domain model with business logic, annotate with jMolecules `@Entity` if needed
-2. **Data/mysql module**: Create JPA entity, repository, and conversion methods. Add Flyway migration if schema changes needed.
-   - **Infrastructure tables** (shared across modules) → `db/migration/__root/`
-   - **Module-specific tables** → `db/migration/{module-name}/`
-3. **Application module**: Create service with use cases, use Spring Modulith events if cross-module communication needed
-   - Use `ApplicationEventPublisher` to publish events
-   - Use `@ApplicationModuleListener` to consume events from other modules
-4. **App/api module**: Create controller with DTOs and REST endpoints
+### 1. Domain Module
+- Create domain model with business logic
+- Use immutable `data class` with validation in `init` blocks
+- Annotate with jMolecules:
+  - `@AggregateRoot` for aggregates
+  - `@Entity` for entities (NOT JPA `@Entity`)
+  - `@ValueObject` for value objects
+  - `@DomainEvent` for domain events
+- **No Spring or JPA annotations in domain layer**
 
-Always maintain the dependency flow: domain ← data/mysql ← application ← app/api.
+Example:
+```kotlin
+@AggregateRoot
+data class Order(
+    val id: Long? = null,
+    val status: OrderStatus
+) {
+    init {
+        require(id == null || id > 0) { "Order ID must be positive" }
+    }
 
-**For data modules**: Never add application layer dependencies to avoid circular dependencies.
+    fun complete(): Order = copy(status = OrderStatus.COMPLETED)
+}
+```
 
-**For event-driven communication**:
-- Events are published and consumed asynchronously but within transactions
+### 2. Data/MySQL Module
+- Create JPA entity with suffix `*JpaEntity`
+- Create repository extending `JpaRepository` with suffix `*JpaRepository`
+- Create persistence adapter implementing secondary ports with suffix `*PersistenceAdapter`
+- Add conversion methods: `toDomain()` and `from(domain)`
+- Add Flyway migration if schema changes needed:
+  - **Infrastructure tables** (shared across modules) → `db/migration/__root/`
+  - **Module-specific tables** → `db/migration/{module-name}/`
+
+Example:
+```kotlin
+@Entity
+@Table(name = "orders")
+class OrderJpaEntity(
+    @Id @GeneratedValue val id: Long? = null,
+    val status: String
+) {
+    fun toDomain() = Order(id, OrderStatus.valueOf(status))
+
+    companion object {
+        fun from(order: Order) = OrderJpaEntity(order.id, order.status.name)
+    }
+}
+
+interface OrderJpaRepository : JpaRepository<OrderJpaEntity, Long>
+
+@Component
+class OrderPersistenceAdapter(
+    private val repository: OrderJpaRepository
+) : LoadOrderPort, SaveOrderPort {
+    override fun loadOrder(id: Long): Order? =
+        repository.findById(id).orElse(null)?.toDomain()
+
+    override fun saveOrder(order: Order): Order =
+        repository.save(OrderJpaEntity.from(order)).toDomain()
+}
+```
+
+### 3. Application Module
+- Create **primary ports (use cases)** in `port.input` package
+  - Annotate with `@PrimaryPort` (jMolecules)
+  - Suffix: `*UseCase`
+- Create **secondary ports** in `port.output` package
+  - Annotate with `@SecondaryPort` (jMolecules)
+  - Suffix: `*Port`
+- Create service implementing primary ports
+  - Annotate with `@Service`
+  - Use `@Transactional` for transaction boundaries
+  - Use `ApplicationEventPublisher` for Spring Modulith events
+- For event consumption:
+  - Use `@ApplicationModuleListener` to consume events from other modules
+
+Example:
+```kotlin
+@PrimaryPort
+interface CompleteOrderUseCase {
+    fun completeOrder(orderId: Long): Order
+}
+
+@SecondaryPort
+interface LoadOrderPort {
+    fun loadOrder(id: Long): Order?
+}
+
+@SecondaryPort
+interface SaveOrderPort {
+    fun saveOrder(order: Order): Order
+}
+
+@Service
+@Transactional(readOnly = true)
+class OrderService(
+    private val loadOrderPort: LoadOrderPort,
+    private val saveOrderPort: SaveOrderPort,
+    private val events: ApplicationEventPublisher
+) : CompleteOrderUseCase {
+
+    @Transactional
+    override fun completeOrder(orderId: Long): Order {
+        val order = loadOrderPort.loadOrder(orderId)
+            ?: throw OrderNotFoundException(orderId)
+        val completed = order.complete()
+        val saved = saveOrderPort.saveOrder(completed)
+
+        events.publishEvent(OrderCompleted(orderId))
+
+        return saved
+    }
+}
+```
+
+### 4. App/API Module
+- Create controller with DTOs and REST endpoints
+- Annotate with `@RestController`
+- Suffix: `*Controller`
+- Inject and use primary ports (use cases), NOT services directly
+- Separate request/response DTOs from domain models
+
+Example:
+```kotlin
+@RestController
+@RequestMapping("/api/orders")
+class OrderController(
+    private val completeOrderUseCase: CompleteOrderUseCase
+) {
+    @PostMapping("/{id}/complete")
+    fun completeOrder(@PathVariable id: Long): ResponseEntity<OrderResponse> {
+        val order = completeOrderUseCase.completeOrder(id)
+        return ResponseEntity.ok(OrderResponse.from(order))
+    }
+}
+```
+
+### 5. App/Worker Module (Optional)
+- Create Kafka consumers or event listeners for async processing
+- Annotate with `@Service`
+- Suffix: `*Consumer`
+- Use `@ApplicationModuleListener` for Spring Modulith events
+
+Example:
+```kotlin
+@Service
+class OrderEventConsumer {
+
+    @ApplicationModuleListener
+    @Transactional
+    fun on(event: OrderCompleted) {
+        log.info { "Order completed: ${event.orderId}" }
+        // Process event asynchronously
+    }
+}
+```
+
+### Critical Rules
+
+**Dependency Flow**: Always maintain the strict hierarchy:
+```
+domain ← data/mysql ← application ← app/api|worker
+```
+
+**Never reverse dependencies**:
+- Domain MUST NOT depend on data, application, or app layers
+- Data modules MUST NOT depend on application layer (to avoid circular dependencies)
+- Data modules should ONLY depend on domain
+
+**For Event-Driven Communication**:
+- Events are published within transactions (transactional guarantee)
 - Failed event processing is automatically retried by Spring Modulith
-- Monitor `event_publication` table for stuck events (events with old `publication_date` and NULL `completion_date`)
+- Successfully processed events are automatically removed from `event_publication` table
+- Monitor `event_publication` table for stuck events:
+  - Events with old `publication_date` and NULL `completion_date` indicate failures
+  - Check `completion_attempts` for retry count
+
+**Package Naming**:
+- Follow hexagonal architecture package structure strictly
+- Use adapter pattern for data access: `{module}.adapter.output.mysql`
+- Use port pattern for interfaces: `{module}.application.port.{input|output}`
 
 ## Gradle Build Troubleshooting
 

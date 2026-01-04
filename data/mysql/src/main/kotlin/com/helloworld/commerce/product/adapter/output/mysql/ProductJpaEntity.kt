@@ -1,12 +1,12 @@
-package com.helloworld.commerce.order
+package com.helloworld.commerce.product.adapter.output.mysql
 
 import jakarta.persistence.*
 import java.math.BigDecimal
 import java.time.LocalDateTime
 
 @Entity
-@Table(name = "orders")
-class OrderJpaEntity(
+@Table(name = "products")
+class ProductJpaEntity(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long? = null,

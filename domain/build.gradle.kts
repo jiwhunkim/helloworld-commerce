@@ -6,6 +6,7 @@ plugins {
 
 dependencies {
     // jMolecules for DDD patterns
+    implementation(platform(libs.jmolecules.bom))
     implementation(libs.bundles.jmolecules)
 
     // Testing

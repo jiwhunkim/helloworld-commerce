@@ -31,7 +31,12 @@ dependencies {
 
     testImplementation(libs.findBundle("kotest").get())
     testImplementation(libs.findLibrary("kotest.extensions.spring").get())
+
+    implementation(platform(libs.findLibrary("jmolecules.bom").get()))
+    implementation(libs.findBundle("jmolecules").get())
+    implementation(libs.findLibrary("jmolecules.hexagonal.architecture").get())
 }
+
 
 allOpen {
     annotation("jakarta.persistence.Entity")

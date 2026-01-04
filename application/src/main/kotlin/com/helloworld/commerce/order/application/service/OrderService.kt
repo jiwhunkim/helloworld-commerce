@@ -1,5 +1,6 @@
-package com.helloworld.commerce.order.application
+package com.helloworld.commerce.order.application.service
 
+import com.helloworld.commerce.order.application.port.input.CompleteOrderUseCase
 import com.helloworld.commerce.order.domain.OrderComplete
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.context.ApplicationEventPublisher
@@ -8,9 +9,9 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-class OrderService(val events: ApplicationEventPublisher) {
+class OrderService(val events: ApplicationEventPublisher): CompleteOrderUseCase {
     @Transactional
-    fun complete() {
+    override fun complete(orderId: Long) {
         events.publishEvent(OrderComplete(1L))
     }
 
