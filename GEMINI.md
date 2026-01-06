@@ -13,8 +13,8 @@ This document provides a comprehensive overview of the `helloworld-commerce` pro
 The project is divided into distinct layers:
 
 -   **`domain`**: Contains the core business logic and domain models, with no external dependencies. It's an independent build.
--   **`data`**: The persistence layer, responsible for database interactions. It's a composite build with submodules for `mysql` and `redis`.
--   **`application`**: The application service layer, containing use cases and orchestrating the domain. It is an independent build and depends on `domain` and `data/mysql`.
+-   **`data`**: The persistence layer, responsible for database interactions. It's a composite build with submodules for `mysql` and `redis`. `data/mysql` depends on `domain` and `application` to implement secondary ports.
+-   **`application`**: The application service layer, containing use cases and orchestrating the domain. It is an independent build and depends on `domain`.
 -   **`app`**: The entry-point layer, containing the API and background workers. It's a composite build with `api` and `worker` submodules.
 -   **`build-logic`**: Houses Gradle convention plugins to share build configurations across all modules.
 

@@ -27,10 +27,10 @@ The project follows a strict dependency hierarchy (bottom-up):
 ```
 domain (no dependencies)
   ↑
-data/mysql (depends on: domain)
-data/redis (independent)
+application (depends on: domain)
   ↑
-application (depends on: domain, data/mysql)
+data/mysql (depends on: domain, application)
+data/redis (independent)
   ↑
 app/api (depends on: domain, application, data/mysql)
 app/worker (depends on: domain, application, data/mysql)
@@ -38,7 +38,7 @@ app/worker (depends on: domain, application, data/mysql)
 
 **Critical Rules**:
 1. Dependencies flow upward only. Never add dependencies in reverse (e.g., domain cannot depend on data)
-2. Data modules (mysql, redis) must NOT depend on application layer to avoid circular dependencies
+2. Data/mysql depends on application to implement secondary ports; data/redis remains independent
 3. Use group IDs for cross-build dependencies: `com.helloworld:domain`, `com.helloworld.data:mysql`, `com.helloworld.app:api`
 
 ### Layer Responsibilities
@@ -777,13 +777,13 @@ class OrderEventConsumer {
 
 **Dependency Flow**: Always maintain the strict hierarchy:
 ```
-domain ← data/mysql ← application ← app/api|worker
+domain ← application ← data/mysql ← app/api|worker
 ```
 
 **Never reverse dependencies**:
 - Domain MUST NOT depend on data, application, or app layers
-- Data modules MUST NOT depend on application layer (to avoid circular dependencies)
-- Data modules should ONLY depend on domain
+- Data/mysql depends on application layer to implement secondary ports (follow the documented flow)
+- Data/redis should remain independent
 
 **For Event-Driven Communication**:
 - Events are published within transactions (transactional guarantee)
@@ -808,9 +808,9 @@ If you encounter "Cannot find module" errors:
 - Verify module is included in root `settings.gradle.kts` using `includeBuild("module-name")`
 
 If you encounter "Circular dependency" errors:
-- Data modules (mysql, redis) must NOT depend on application layer
-- Check dependency graph: domain → data → application → app
-- Data modules should only depend on domain
+- Data/mysql depends on application; data/redis should remain independent
+- Check dependency graph: domain → application → data → app
+- Data/redis should remain independent
 
 If you encounter "Cannot access supertype" errors:
 - Ensure the module has correct dependencies in `build.gradle.kts`

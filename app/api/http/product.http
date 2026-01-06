@@ -1,0 +1,130 @@
+### Create a new product
+POST http://localhost:8080/api/products
+Content-Type: application/json
+
+{
+  "name": "iPhone 15 Pro",
+  "description": "Apple iPhone 15 Pro with A17 Pro chip",
+  "price": 1299000
+}
+
+### Get all products
+GET http://localhost:8080/api/products
+
+### Get product by ID
+GET http://localhost:8080/api/products/1
+
+### Search products by name
+GET http://localhost:8080/api/products/search?name=iPhone
+
+### Update product info
+PUT http://localhost:8080/api/products/1/info
+Content-Type: application/json
+
+{
+  "name": "iPhone 15 Pro Max",
+  "description": "Apple iPhone 15 Pro Max with larger display"
+}
+
+### Update product price
+PUT http://localhost:8080/api/products/1/price
+Content-Type: application/json
+
+{
+  "price": 1499000
+}
+
+### Create a product option
+POST http://localhost:8080/api/product-options
+Content-Type: application/json
+
+{
+  "productId": 1,
+  "name": "Black 256GB",
+  "description": "Black color with 256GB storage",
+  "initialStock": 100
+}
+
+### Create another product option
+POST http://localhost:8080/api/product-options
+Content-Type: application/json
+
+{
+  "productId": 1,
+  "name": "White 256GB",
+  "description": "White color with 256GB storage",
+  "initialStock": 150
+}
+
+### Get product option by ID
+GET http://localhost:8080/api/product-options/1
+
+### Get product options by product ID
+GET http://localhost:8080/api/product-options/product/1
+
+### Update product option info
+PUT http://localhost:8080/api/product-options/1
+Content-Type: application/json
+
+{
+  "name": "Titanium Black 256GB",
+  "description": "Titanium Black color with 256GB storage"
+}
+
+### Decrease stock
+PUT http://localhost:8080/api/product-options/1/stock/decrease
+Content-Type: application/json
+
+{
+  "amount": 5
+}
+
+### Increase stock
+PUT http://localhost:8080/api/product-options/1/stock/increase
+Content-Type: application/json
+
+{
+  "amount": 10
+}
+
+### Create another product
+POST http://localhost:8080/api/products
+Content-Type: application/json
+
+{
+  "name": "MacBook Pro 16",
+  "description": "Apple MacBook Pro 16-inch with M3 Max chip",
+  "price": 3299000
+}
+
+### Create product options for MacBook
+POST http://localhost:8080/api/product-options
+Content-Type: application/json
+
+{
+  "productId": 2,
+  "name": "M3 Max 36GB 512GB",
+  "description": "M3 Max chip with 36GB RAM and 512GB SSD",
+  "initialStock": 50
+}
+
+### Create third product
+POST http://localhost:8080/api/products
+Content-Type: application/json
+
+{
+  "name": "AirPods Pro",
+  "description": "Active Noise Cancellation wireless earbuds",
+  "price": 329000
+}
+
+### Create product option for AirPods
+POST http://localhost:8080/api/product-options
+Content-Type: application/json
+
+{
+  "productId": 3,
+  "name": "Standard",
+  "description": "Standard AirPods Pro package",
+  "initialStock": 200
+}

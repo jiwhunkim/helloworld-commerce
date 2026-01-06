@@ -10,12 +10,12 @@ This project follows a **modular monolith** (modulith) architecture pattern usin
  helloworld-commerce/              (root build)
  ├── domain/                       (independent build)
  ├── data/                         (composite build)
- │   ├── mysql/                    (depends on: domain)
+ │   ├── mysql/                    (depends on: domain, application)
  │   └── redis/                    (independent)
- ├── application/                  (independent build, depends on: domain, data/mysql)
+ ├── application/                  (independent build, depends on: domain)
  ├── app/                          (composite build)
  │   ├── api/                      (depends on: domain, application, data/mysql)
- │   └── worker/                   (depends on: domain, application)
+ │   └── worker/                   (depends on: domain, application, data/mysql)
  ├── build-logic/                  (convention plugins)
  └── gradle/                       (version catalog)
  ```
@@ -30,21 +30,21 @@ This project follows a **modular monolith** (modulith) architecture pattern usin
  - **App/Worker**: Kafka consumers and event listeners for async processing. Creates executable JAR for background workers.
  - **Build-Logic**: Gradle convention plugins that define shared build configurations across modules.
 
- ### Dependency Flow
+### Dependency Flow
 
- Infrastructure modules (data/mysql, data/redis) depend on application to implement hexagonal ports:
+Infrastructure modules (data/mysql, data/redis) depend on application to implement hexagonal ports:
 
- ```
- domain (no dependencies)
-   ↑
- application (depends on: domain)
-   ↑
- data/mysql (depends on: domain, application)
- data/redis (independent)
-   ↑
- app/api (depends on: domain, application, mysql)
- app/worker (depends on: domain, application, mysql)
- ```
+```
+domain (no dependencies)
+  ↑
+application (depends on: domain)
+  ↑
+data/mysql (depends on: domain, application)
+data/redis (independent)
+  ↑
+app/api (depends on: domain, application, mysql)
+app/worker (depends on: domain, application, mysql)
+```
 
  ## Tech Stack
 

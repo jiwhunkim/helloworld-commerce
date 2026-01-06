@@ -7,6 +7,7 @@ plugins {
     id("buildlogic.kotlin-conventions")
     id("buildlogic.kotlin-logging-conventions")
     id("buildlogic.test-conventions")
+    id("buildlogic.mockk-conventions")
     id("org.springframework.boot")
     id("io.spring.dependency-management")
 }

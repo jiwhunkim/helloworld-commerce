@@ -12,7 +12,7 @@ Key modules:
 - `app/worker/`: Kafka consumers, event listeners. Worker entry point for async processing.
 - `build-logic/`: Gradle convention plugins (kotlin, spring-boot, test, etc.).
 
-Dependency flow: `domain ← data/mysql ← application ← app/api|worker`. Never reverse dependencies.
+Dependency flow: `domain ← application ← data/mysql ← app/api|worker`. Never reverse dependencies.
 
 ## Build, Test, and Development Commands
 
